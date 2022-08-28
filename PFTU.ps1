@@ -164,9 +164,10 @@ function Start-PFTUReceiver
 
         Write-Verbose "Receiving RSA encrypted AES information from client..."
         $Data = Receive-DataPacket -Stream $Stream
-        Write-Verbose "Decrpting AES information..."
-        $Data = $RSA.Decrypt($Data, $RSAPadding)
         $AESMessage = Convert-PSCustomObject -Data $Data
+        Write-Verbose "Decrpting AES information..."
+        $AESMessage.Key = $RSA.Decrypt($AESMessage.Key, $RSAPadding)
+        $AESMessage.IV = $RSA.Decrypt($AESMessage.IV, $RSAPadding)
         Write-Verbose "Configuring AES..."
         $AES = [Security.Cryptography.Aes]::Create()
         $AES.Key = $AESMessage.Key
@@ -333,14 +334,14 @@ function Start-PFTUSender
 
         Write-Verbose "Creating AES configuration..."
         $AES = [Security.Cryptography.Aes]::Create()
-        $AESMessage = [PSCustomObject]@{
-            Key = $AES.Key
-            IV = $AES.IV
-        }
 
         Write-Verbose "Encrypting AES information with RSA..."
+        $AESMessage = [PSCustomObject]@{
+            Key = $RSA.Encrypt($AES.Key, $RSAPadding)
+            IV = $RSA.Encrypt($AES.IV, $RSAPadding)
+        }
+
         $Data = Convert-PSCustomObject -Object $AESMessage
-        $Data = $RSA.Encrypt($Data, $RSAPadding)
         Write-Verbose "Sending RSA enrcryped AES information to server..."
         Send-DataPacket -Stream $Stream -Data $Data
 
