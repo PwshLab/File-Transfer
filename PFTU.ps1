@@ -93,7 +93,10 @@ function Start-PFTUReceiver
         $RequestCompression,
         [Parameter(Mandatory = $false)]
         [Switch]
-        $RequestEncryption
+        $RequestEncryption,
+        [Parameter(Mandatory = $false)]
+        [Switch]
+        $DisableRetransmission
     )
 
     if (![IO.Directory]::Exists($FolderPath))
@@ -176,46 +179,69 @@ function Start-PFTUReceiver
         Write-Verbose "AES configured"
     }
 
-    Write-Verbose "Receiving file data from client..."
-    $Data = Receive-DataPacket -Stream $Stream
-    $FileData = [IO.MemoryStream]::new($Data)
-    Write-Verbose ("Data received (" + $FileData.Length + " bytes)")
+    do {
+        Write-Verbose "Receiving file data from client..."
+        $Data = Receive-DataPacket -Stream $Stream
+        $FileData = [IO.MemoryStream]::new($Data)
+        Write-Verbose ("Data received (" + $FileData.Length + " bytes)")
 
-    if ($Encryption)
-    {   
-        Write-Verbose "Decrypting file data..."
-        $MemoryStream = [IO.MemoryStream]::new()
-        $CryptoStream = [Security.Cryptography.CryptoStream]::new($FileData, $AES.CreateDecryptor(), [Security.Cryptography.CryptoStreamMode]::Read)
-        $CryptoStream.CopyTo($MemoryStream)
-        $FileData = [IO.MemoryStream]::new($MemoryStream.ToArray())
-        Write-Verbose "Data decrypted"
-    }
+        if ($Encryption)
+        {   
+            Write-Verbose "Decrypting file data..."
+            $MemoryStream = [IO.MemoryStream]::new()
+            $CryptoStream = [Security.Cryptography.CryptoStream]::new($FileData, $AES.CreateDecryptor(), [Security.Cryptography.CryptoStreamMode]::Read)
+            $CryptoStream.CopyTo($MemoryStream)
+            $FileData = [IO.MemoryStream]::new($MemoryStream.ToArray())
+            Write-Verbose "Data decrypted"
+        }
 
-    if ($Compression)
-    {
-        Write-Verbose "Decompressing file data..."
-        $MemoryStream = [IO.MemoryStream]::new()
-        $GZipStream = [IO.Compression.GZipStream]::new($FileData, [IO.Compression.CompressionMode]::Decompress)
-        $GZipStream.CopyTo($MemoryStream)
-        $FileData = $MemoryStream
-        Write-Verbose "Data decompressed"
-    }
+        if ($Compression)
+        {
+            Write-Verbose "Decompressing file data..."
+            $MemoryStream = [IO.MemoryStream]::new()
+            $GZipStream = [IO.Compression.GZipStream]::new($FileData, [IO.Compression.CompressionMode]::Decompress)
+            $GZipStream.CopyTo($MemoryStream)
+            $FileData = $MemoryStream
+            Write-Verbose "Data decompressed"
+        }
 
-    $FileData = $FileData.ToArray()
+        $FileData = $FileData.ToArray()
 
-    Write-Verbose "Hashing file data..."
-    $Sha512 = [Security.Cryptography.SHA512]::Create()
-    $Hash = $Sha512.ComputeHash($FileData)
+        Write-Verbose "Hashing file data..."
+        $Sha512 = [Security.Cryptography.SHA512]::Create()
+        $Hash = $Sha512.ComputeHash($FileData)
+        
+        $HashIdentical = (Compare-Object $Hash $GreetMessage.SHA512 -SyncWindow 0).Length -ne 0
+        if (!$HashIdentical)
+        {   
+            Write-Verbose "File hashes are not identical"
+            if ($DisableRetransmission.IsPresent)
+            {
+                Write-Warning -Message "File corrupted"
+                $Server.Stop()
+                return
+            }
+            else
+            {
+                Write-Verbose "Requesting retransmission of file data..."
+            }
+        }
+        else
+        {
+            Write-Verbose "Hashes are identical"
+        }
 
-    if ((Compare-Object $Hash $GreetMessage.SHA512 -SyncWindow 0).Length -ne 0)
-    {   
-        Write-Verbose "File hashes are not identical"
-        Write-Warning -Message "File corrupted"
-        $Server.Stop()
-        return
-    }
-    Write-Verbose "Hashes are identical"
+        $Acknowledgement = [PSCustomObject]@{
+            FileReceived = $HashIdentical
+        }
 
+        $Data = Convert-PSCustomObject -Object $Acknowledgement
+        Send-DataPacket -Stream $Stream -Data $Data
+
+    } until (
+        $HashIdentical
+    )
+    
     Write-Verbose "Writing file data to disk..."
     $FilePath = Join-Path -Path $FolderPath -ChildPath $GreetMessage.FileName
     [IO.File]::WriteAllBytes($FilePath, $FileData)
@@ -355,9 +381,27 @@ function Start-PFTUSender
         Write-Verbose "Encrypted file data with AES"
     }
 
-    Write-Verbose ("Sending file data (" + $FileData.Length + " bytes) to server...")
-    $Data = $FileData.ToArray()
-    Send-DataPacket -Stream $Stream -Data $Data
+    do {
+        Write-Verbose ("Sending file data (" + $FileData.Length + " bytes) to server...")
+        $Data = $FileData.ToArray()
+        Send-DataPacket -Stream $Stream -Data $Data
+
+        Write-Verbose "Receiving Acknowledgement from server..."
+        $Data = Receive-DataPacket -Stream $Stream
+        $Acknowledgement = Convert-PSCustomObject -Data $Data
+
+        if ($Acknowledgement.FileReceived)
+        {
+            Write-Verbose "File successfully transmitted"
+        }
+        else
+        {
+            Write-Verbose "Retransmission of data requested..."
+        }
+
+    } until (
+        $Acknowledgement.FileReceived
+    )
 
     Write-Verbose "Closing client..."
     $FileData.Dispose()
