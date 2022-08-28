@@ -151,7 +151,7 @@ function Start-PFTUReceiver
         Write-Verbose "Creating RSA configuration..."
         $RSA = [Security.Cryptography.RSA]::Create()
         $RSAParameters = $RSA.ExportParameters($false)
-        $RSAPadding = [Security.Cryptography.RSAEncryptionPadding]::CreateOaep([Security.Cryptography.HashAlgorithmName]::SHA512)
+        $RSAPadding = [Security.Cryptography.RSAEncryptionPadding]::Pkcs1
 
         $RSAMessage = [PSCustomObject]@{
             Exponent = $RSAParameters.Exponent
@@ -328,7 +328,7 @@ function Start-PFTUSender
         $RSAParameters.Exponent = $RSAMessage.Exponent
         $RSAParameters.Modulus = $RSAMessage.Modulus
         $RSA = [Security.Cryptography.RSA]::Create($RSAParameters)
-        $RSAPadding = [Security.Cryptography.RSAEncryptionPadding]::CreateOaep([Security.Cryptography.HashAlgorithmName]::SHA512)
+        $RSAPadding = [Security.Cryptography.RSAEncryptionPadding]::Pkcs1
         Write-Verbose "RSA configured"
 
         Write-Verbose "Creating AES configuration..."
