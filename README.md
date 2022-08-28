@@ -1,2 +1,2 @@
-# PFTC
-Powershell file transfer client
+# PFTU
+Powershell file transfer utility
