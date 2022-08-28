@@ -122,6 +122,7 @@ function Start-PFTUReceiver
     Write-Verbose "Reading Greet Message from client..."
     $Data = Receive-DataPacket -Stream $Stream
     $GreetMessage = Convert-PSCustomObject -Data $Data
+    Write-Verbose $GreetMessage
 
     $Compression = $GreetMessage.Compression -or $RequestCompression
     $Encryption = $GreetMessage.Encryption -or $RequestEncryption
@@ -274,8 +275,8 @@ function Start-PFTUSender
     $Stream = $Client.GetStream()
 
     $GreetMessage = [PSCustomObject]@{
-        Compression = $RequestCompression
-        Encryption = $RequestEncryption
+        Compression = $RequestCompression.IsPresent
+        Encryption = $RequestEncryption.IsPresent
         SHA512 = $Hash
         FileName = $FileName
     }
@@ -289,6 +290,7 @@ function Start-PFTUSender
     $Data = Receive-DataPacket -Stream $Stream
     $ResponseMessage = Convert-PSCustomObject -Data $Data
     Write-Verbose "Response received"
+    Write-Verbose $ResponseMessage
 
     $Compression = $ResponseMessage.Compression
     $Encryption = $ResponseMessage.Encryption
@@ -355,7 +357,7 @@ function Start-PFTUSender
     Send-DataPacket -Stream $Stream -Data $Data
 
     Write-Verbose "Closing client..."
-    $FileData.Dispose()
-    $Stream.Dispose()
-    $Client.Dispose()
+    # $FileData.Dispose()
+    # $Stream.Dispose()
+    # $Client.Dispose()
 }
