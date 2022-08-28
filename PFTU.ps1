@@ -178,8 +178,8 @@ function Start-PFTUReceiver
 
     Write-Verbose "Receiving file data from client..."
     $Data = Receive-DataPacket -Stream $Stream
-    $FileData = [IO.MemoryStream]::new($FileData)
-    Write-Verbose "Data received"
+    $FileData = [IO.MemoryStream]::new($Data)
+    Write-Verbose ("Data received (" + $FileData.Length + " bytes)")
 
     if ($Encryption)
     {   
@@ -352,12 +352,12 @@ function Start-PFTUSender
         Write-Verbose "Encrypted file data with AES"
     }
 
-    Write-Verbose "Sending file data to server..."
+    Write-Verbose ("Sending file data (" + $FileData.Length + " bytes) to server...")
     $Data = $FileData.ToArray()
     Send-DataPacket -Stream $Stream -Data $Data
 
     Write-Verbose "Closing client..."
-    # $FileData.Dispose()
-    # $Stream.Dispose()
-    # $Client.Dispose()
+    $FileData.Dispose()
+    $Stream.Dispose()
+    $Client.Dispose()
 }
