@@ -205,12 +205,13 @@ function Start-PFTUReceiver
     $Sha512 = [Security.Cryptography.SHA512]::Create()
     $Hash = $Sha512.ComputeHash($FileData)
 
-    if ($Hash -ne $GreetMessage.SHA512)
+    if ((Compare-Object $Hash $GreetMessage.SHA512 -SyncWindow 0).Length -ne 0)
     {   
         Write-Verbose "File hashes are not identical"
         Write-Warning -Message "File corrupted"
         return
     }
+    Write-Verbose "Hashes are Equal"
 
     Write-Verbose "Writing file data to disk..."
     $FilePath = Join-Path -Path $FolderPath -ChildPath $GreetMessage.FileName
@@ -220,7 +221,6 @@ function Start-PFTUReceiver
     Write-Verbose "Closing server..."
     $Stream.Dispose()
     $Server.Stop()
-    $Server.Dispose()
 }
 
 function Start-PFTUSender
