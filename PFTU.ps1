@@ -187,7 +187,7 @@ function Start-PFTUReceiver
         $MemoryStream = [IO.MemoryStream]::new()
         $CryptoStream = [Security.Cryptography.CryptoStream]::new($FileData, $AES.CreateDecryptor(), [Security.Cryptography.CryptoStreamMode]::Read)
         $CryptoStream.CopyTo($MemoryStream)
-        $FileData = $MemoryStream
+        $FileData = [IO.MemoryStream]::new($MemoryStream.ToArray())
         Write-Verbose "Data decrypted"
     }
 
@@ -201,6 +201,8 @@ function Start-PFTUReceiver
         Write-Verbose "Data decompressed"
     }
 
+    $FileData = $FileData.ToArray()
+
     Write-Verbose "Hashing file data..."
     $Sha512 = [Security.Cryptography.SHA512]::Create()
     $Hash = $Sha512.ComputeHash($FileData)
@@ -209,14 +211,14 @@ function Start-PFTUReceiver
     {   
         Write-Verbose "File hashes are not identical"
         Write-Warning -Message "File corrupted"
+        $Server.Stop()
         return
     }
-    Write-Verbose "Hashes are Equal"
+    Write-Verbose "Hashes are identical"
 
     Write-Verbose "Writing file data to disk..."
     $FilePath = Join-Path -Path $FolderPath -ChildPath $GreetMessage.FileName
-    $Data = $FileData.ToArray()
-    [IO.File]::WriteAllBytes($FilePath, $Data)
+    [IO.File]::WriteAllBytes($FilePath, $FileData)
 
     Write-Verbose "Closing server..."
     $Stream.Dispose()
@@ -314,7 +316,8 @@ function Start-PFTUSender
         $MemoryStream = [IO.MemoryStream]::new()
         $GZipStream = [IO.Compression.GZipStream]::new($MemoryStream, [IO.Compression.CompressionMode]::Compress)
         $FileData.CopyTo($GZipStream)
-        $FileData = $MemoryStream
+        $GZipStream.Close()
+        $FileData = [IO.MemoryStream]::new($MemoryStream.ToArray())
         Write-Verbose "File data compressed"
     }
 
