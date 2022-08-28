@@ -187,7 +187,6 @@ function Start-PFTUReceiver
         $CryptoStream = [Security.Cryptography.CryptoStream]::new($FileData, $AES.CreateDecryptor(), [Security.Cryptography.CryptoStreamMode]::Read)
         $CryptoStream.CopyTo($MemoryStream)
         $FileData = $MemoryStream
-        $CryptoStream.Dispose()
         Write-Verbose "Data decrypted"
     }
 
@@ -198,7 +197,6 @@ function Start-PFTUReceiver
         $GZipStream = [IO.Compression.GZipStream]::new($FileData, [IO.Compression.CompressionMode]::Decompress)
         $GZipStream.CopyTo($MemoryStream)
         $FileData = $MemoryStream
-        $GZipStream.Dispose()
         Write-Verbose "Data decompressed"
     }
 
@@ -315,7 +313,6 @@ function Start-PFTUSender
         $GZipStream = [IO.Compression.GZipStream]::new($MemoryStream, [IO.Compression.CompressionMode]::Compress)
         $FileData.CopyTo($GZipStream)
         $FileData = $MemoryStream
-        $GZipStream.Dispose()
         Write-Verbose "File data compressed"
     }
 
@@ -350,7 +347,6 @@ function Start-PFTUSender
         $CryptoStream = [Security.Cryptography.CryptoStream]::new($FileData, $AES.CreateEncryptor(), [Security.Cryptography.CryptoStreamMode]::Read)
         $CryptoStream.CopyTo($MemoryStream)
         $FileData = $MemoryStream
-        $CryptoStream.Dispose()
         Write-Verbose "Encrypted file data with AES"
     }
 
