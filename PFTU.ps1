@@ -76,6 +76,24 @@ function Convert-PSCustomObject
     }
 }
 
+function Format-ByteArray
+{
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [ValidateNotNullOrEmpty()]
+        [byte[]]
+        $Bytes
+    )
+
+    $output = ""
+    for ($i = 0; $i -lt $Bytes.Length; $i++) {
+        $output += $Bytes[$i].ToString("X2")
+    }
+
+    return $output
+}
+
 function Start-PFTUReceiver
 {
     [CmdletBinding()]
@@ -211,13 +229,23 @@ function Start-PFTUReceiver
         $Sha512 = [Security.Cryptography.SHA512]::Create()
         $Hash = $Sha512.ComputeHash($FileData)
         
-        $HashIdentical = (Compare-Object $Hash $GreetMessage.SHA512 -SyncWindow 0).Length -ne 0
+        $HashIdentical = (Compare-Object $Hash $GreetMessage.SHA512 -SyncWindow 0).Length -eq 0
+        Write-Verbose ("Original file hash is " + (Format-ByteArray -Bytes $GreetMessage.SHA512))
+        Write-Verbose ("Recieved data file hash is " + (Format-ByteArray -Bytes $Hash))
         if (!$HashIdentical)
         {   
             Write-Verbose "File hashes are not identical"
             if ($DisableRetransmission.IsPresent)
             {
                 Write-Warning -Message "File corrupted"
+
+                $Acknowledgement = [PSCustomObject]@{
+                    FileReceived = $true
+                }
+        
+                $Data = Convert-PSCustomObject -Object $Acknowledgement
+                Send-DataPacket -Stream $Stream -Data $Data
+
                 $Server.Stop()
                 return
             }
@@ -288,6 +316,7 @@ function Start-PFTUSender
     Write-Verbose "Hashing file data..."
     $Sha512 = [Security.Cryptography.SHA512]::Create()
     $Hash = $Sha512.ComputeHash($FileData)
+    Write-Verbose ("File hash is " + (Format-ByteArray -Bytes $Hash))
 
     Write-Verbose "Connecting to address $Address at port $Port..."
     $Client = [Net.Sockets.TcpClient]::new($Address, $Port)
