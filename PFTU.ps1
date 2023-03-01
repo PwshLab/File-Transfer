@@ -46,7 +46,7 @@ function Receive-DataPacket
     $Data = [Array]::CreateInstance([byte], $DataLength)
     $Stream.Read($Data, 0, $Data.Length) | Out-Null
 
-    return $Data
+    Write-Output $Data
 }
 
 function Convert-PSCustomObject
